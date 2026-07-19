@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur d’Ebook Premium</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f8f9fa; padding: 2rem; }
+        .card { border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .json-view { background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 0.5rem; max-height: 600px; overflow-y: auto; white-space: pre-wrap; font-size: 0.85rem; }
+        .image-preview { max-width: 100%; border-radius: 0.5rem; margin-top: 0.5rem; }
+        .spinner { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 class="mb-4 text-center">📘 Générateur d’Ebook Premium</h1>
+
+    <div class="card p-4 mb-4">
+        <form id="ebookForm">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="subject" class="form-label">Sujet de l’ebook</label>
+                        <input type="text" class="form-control" id="subject" placeholder="ex: coaching en ligne pour freelances" required>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label for="mistralKey" class="form-label">Clé API Mistral</label>
+                        <input type="password" class="form-control" id="mistralKey" placeholder="sk-..." required>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label for="openaiKey" class="form-label">Clé API OpenAI (DALL‑E)</label>
+                        <input type="password" class="form-control" id="openaiKey" placeholder="sk-...">
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg w-100" id="generateBtn">
+                <span class="spinner-border spinner-border-sm spinner" role="status" aria-hidden="true"></span>
+                Générer l’ebook
+            </button>
+        </form>
+    </div>
+
+    <div id="resultArea" style="display: none;">
+        <h3>📄 Ebook généré</h3>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card p-3">
+                    <h5>JSON complet</h5>
+                    <div class="json-view" id="jsonOutput"></div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card p-3">
+                    <h5>📸 Images générées</h5>
+                    <div id="imageGallery"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('ebookForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const subject = document.getElementById('subject').value.trim();
+        const mistralKey = document.getElementById('mistralKey').value.trim();
+        const openaiKey = document.getElementById('openaiKey').value.trim();
+
+        if (!subject || !mistralKey) {
+            alert('Veuillez remplir le sujet et la clé Mistral.');
+            return;
+        }
+
+        const btn = document.getElementById('generateBtn');
+        const spinner = btn.querySelector('.spinner');
+        btn.disabled = true;
+        spinner.style.display = 'inline-block';
+
+        try {
+            // 1. Appel à Mistral pour générer le JSON
+            const mistralResponse = await callMistral(subject, mistralKey);
+            const ebookData = JSON.parse(mistralResponse);
+
+            // 2. Affichage du JSON
+            document.getElementById('jsonOutput').textContent = JSON.stringify(ebookData, null, 2);
+            document.getElementById('resultArea').style.display = 'block';
+
+            // 3. Génération des images (si clé OpenAI fournie)
+            const gallery = document.getElementById('imageGallery');
+            gallery.innerHTML = '';
+            if (openaiKey) {
+                const coverPrompt = ebookData.cover_prompt || 'A modern ebook cover';
+                const coverUrl = await generateImage(coverPrompt, openaiKey);
+                gallery.innerHTML += `<img src="${coverUrl}" class="image-preview" alt="Couverture"><br>`;
+
+                // Pour chaque chapitre
+                for (let i = 0; i < ebookData.chapters.length; i++) {
+                    const chapter = ebookData.chapters[i];
+                    const prompt = chapter.image_prompt || 'An illustration for business coaching';
+                    const imgUrl = await generateImage(prompt, openaiKey);
+                    gallery.innerHTML += `<img src="${imgUrl}" class="image-preview" alt="Image du chapitre ${i+1}"><br>`;
+                }
+
+                // Bonus
+                if (ebookData.bonus) {
+                    for (let i = 0; i < ebookData.bonus.length; i++) {
+                        const bonus = ebookData.bonus[i];
+                        const prompt = bonus.image_prompt || 'Bonus illustration';
+                        const imgUrl = await generateImage(prompt, openaiKey);
+                        gallery.innerHTML += `<img src="${imgUrl}" class="image-preview" alt="Bonus ${i+1}"><br>`;
+                    }
+                }
+            } else {
+                gallery.innerHTML = '<p class="text-muted">Aucune clé OpenAI fournie – les images ne sont pas générées.</p>';
+            }
+
+        } catch (error) {
+            alert('Erreur : ' + error.message);
+        } finally {
+            btn.disabled = false;
+            spinner.style.display = 'none';
+        }
+    });
+
+    // ---------- Fonctions API ----------
+    async function callMistral(subject, apiKey) {
+        const systemPrompt = `
+Tu es un auteur à succès, expert en psychologie du consommateur, copywriter, consultant business et pédagogue.
+Ta mission est de créer un produit digital premium (ebook) sur le sujet suivant : "${subject}".
+
+Respecte strictement la structure JSON suivante :
+{
+  "title": "",
+  "subtitle": "",
+  "cover_prompt": "",
+  "avatar": {
+    "name": "", "age": 0, "profession": "", "salary": "", "goals": "", "main_fear": "",
+    "frustrations": "", "current_mistakes": "", "habits": "", "knowledge_level": "",
+    "why_buy": "", "triggers": "", "language_style": "", "deep_motivation": ""
+  },
+  "summary": [],
+  "chapters": [
+    {
+      "title": "",
+      "content": "<p>...</p>",
+      "image_prompt": "",
+      "tables": [ { "title": "", "headers": [], "rows": [] } ],
+      "checklist": [],
+      "exercise": ""
+    }
+  ],
+  "bonus": [
+    { "title": "", "description": "", "content": "", "image_prompt": "" }
+  ],
+  "conclusion": "",
+  "action_plan": {
+    "30_days": { "title": "", "steps": [] },
+    "90_days": { "title": "", "steps": [] }
+  }
+}
+
+Règles :
+- Le contenu doit être original, concret, orienté résultats.
+- Chaque chapitre doit suivre la structure : Titre, introduction, histoire inspirée, explication, méthode, exemple concret, conseils, erreurs à éviter, résumé, exercice, checklist, citation, transition, psychologie.
+- Intègre des tableaux, checklists, exercices.
+- Le texte HTML peut être inclus dans "content".
+- "image_prompt" doit être un prompt détaillé en anglais pour une illustration (style flat design, 3D, isométrique, business, 16:9, sans texte).
+- Génère entre 6 et 9 chapitres.
+- Ajoute 2 bonus complets.
+- Rédige en français, sauf les prompts d'image qui sont en anglais.
+
+Retourne uniquement le JSON, sans aucun autre texte.
+`;
+
+        const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'mistral-large-latest',
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: `Sujet : ${subject}` }
+                ],
+                temperature: 0.7,
+                response_format: { type: 'json_object' }
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(`Mistral API error: ${err}`);
+        }
+        const data = await response.json();
+        const content = data.choices[0].message.content;
+        return content;
+    }
+
+    async function generateImage(prompt, apiKey) {
+        const response = await fetch('https://api.openai.com/v1/images/generations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'dall-e-3',
+                prompt: prompt,
+                size: '1024x1792',  // format 16:9 (largeur 1024, hauteur 576? DALL-E 3 supporte 1024x1792, 1792x1024)
+                quality: 'hd',
+                n: 1
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(`OpenAI API error: ${err}`);
+        }
+        const data = await response.json();
+        return data.data[0].url;
+    }
+</script>
+
+</body>
+</html>

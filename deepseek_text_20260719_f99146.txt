@@ -1,0 +1,13 @@
+
+---
+
+## 🚀 Instructions de déploiement sur GitHub
+
+1. Créez un nouveau dépôt sur GitHub.
+2. Dans votre terminal :
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git remote add origin https://github.com/votre-utilisateur/ebook-generator.git
+   git push -u origin main

@@ -1,0 +1,2 @@
+MISTRAL_API_KEY=sk-votre-cle-mistral
+OPENAI_API_KEY=sk-votre-cle-openai

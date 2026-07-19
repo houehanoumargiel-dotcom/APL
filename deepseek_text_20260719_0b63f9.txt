@@ -1,0 +1,9 @@
+ebook-generator-vercel/
+├── api/
+│   └── generate.js       # Endpoint serverless
+├── public/
+│   └── index.html        # Interface utilisateur
+├── vercel.json           # Configuration Vercel
+├── package.json
+├── .env.example          # (optionnel, pour local)
+└── README.md

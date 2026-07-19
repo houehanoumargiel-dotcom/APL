@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur d'Ebook Premium</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f8f9fa; padding: 2rem; }
+        .card { border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .json-view { background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 0.5rem; max-height: 600px; overflow-y: auto; white-space: pre-wrap; font-size: 0.85rem; }
+        .image-preview { max-width: 100%; border-radius: 0.5rem; margin-top: 0.5rem; }
+        .spinner { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 class="mb-4 text-center">📘 Générateur d'Ebook Premium</h1>
+
+    <div class="card p-4 mb-4">
+        <form id="ebookForm">
+            <div class="mb-3">
+                <label for="subject" class="form-label">Sujet de l'ebook</label>
+                <input type="text" class="form-control" id="subject" placeholder="ex: coaching en ligne pour freelances" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg w-100" id="generateBtn">
+                <span class="spinner-border spinner-border-sm spinner" role="status" aria-hidden="true"></span>
+                Générer l'ebook
+            </button>
+        </form>
+    </div>
+
+    <div id="resultArea" style="display: none;">
+        <h3>📄 Ebook généré</h3>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card p-3">
+                    <h5>JSON complet</h5>
+                    <div class="json-view" id="jsonOutput"></div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card p-3">
+                    <h5>📸 Images générées</h5>
+                    <div id="imageGallery"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('ebookForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const subject = document.getElementById('subject').value.trim();
+        if (!subject) {
+            alert('Veuillez entrer un sujet.');
+            return;
+        }
+
+        const btn = document.getElementById('generateBtn');
+        const spinner = btn.querySelector('.spinner');
+        btn.disabled = true;
+        spinner.style.display = 'inline-block';
+
+        try {
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subject })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Erreur serveur');
+            }
+
+            const ebookData = await response.json();
+
+            document.getElementById('jsonOutput').textContent = JSON.stringify(ebookData, null, 2);
+            document.getElementById('resultArea').style.display = 'block';
+
+            const gallery = document.getElementById('imageGallery');
+            gallery.innerHTML = '';
+            if (ebookData.cover_image) {
+                gallery.innerHTML += `<img src="${ebookData.cover_image}" class="image-preview" alt="Couverture"><br>`;
+            }
+            if (ebookData.chapters) {
+                ebookData.chapters.forEach((ch, i) => {
+                    if (ch.image_url) {
+                        gallery.innerHTML += `<img src="${ch.image_url}" class="image-preview" alt="Image du chapitre ${i+1}"><br>`;
+                    }
+                });
+            }
+            if (ebookData.bonus) {
+                ebookData.bonus.forEach((b, i) => {
+                    if (b.image_url) {
+                        gallery.innerHTML += `<img src="${b.image_url}" class="image-preview" alt="Bonus ${i+1}"><br>`;
+                    }
+                });
+            }
+        } catch (error) {
+            alert('Erreur : ' + error.message);
+        } finally {
+            btn.disabled = false;
+            spinner.style.display = 'none';
+        }
+    });
+</script>
+
+</body>
+</html>
